@@ -6,117 +6,114 @@
 #include <functional>
 
 #include "utils.hpp"
+#include <fstream>
+#include "ILP.hpp"
+#include "bpa.hpp"
 
 using namespace std;
 
-int test() {
-	// Create a graph given in the above diagram
-	Graph g(4);
-	g.addEdge(0, 1);
-	g.addEdge(0, 2);
-	g.addEdge(1, 2);
-	g.addEdge(2, 0);
-	g.addEdge(2, 3);
-	g.addEdge(3, 3);
-
-	printf("SP(0,3)=%d\n", g.shortest_path(0, 3));
-	Set U;
-	Powerset ps( { 1, 2, 3 });
-	ps.forEach([](const Set& set) {
-		std::ostream_iterator<size_t> out_it(std::cout, ",");
-		std::copy(set.begin(), set.end(), out_it);
-		cout << '\n';
-	});
-	return 0;
-}
-
-class BPA {
-public:
-	const int N;
-	Graph g;
-	Set V;
-	vector<Path> BP;
-
-	BPA(const int N) :
-			N(N), g(choose(N, 2)) {
-		for (int v = 0; v < N; v++) {
-			V.push_back(v);
-		}
-	}
-
-	void print_BP() {
-		for (Path P : BP) {
-			print_path(P);
-		}
-	}
-
-	size_t LID(Vertex v, Vertex w) { // create unique ID for link (v,w)
-		if (v > w) {
-			swap(v, w);
-		}
-//		printf("LID(%lu,%lu)=%lu\n", v, w, sum(N - v, N - 1) + w - v - 1);
-		return sum(N - v, N - 1) + w - v - 1;
-	}
-
-	void updateDependencies(const Path P, bool rem) {
-		size_t e = LID(P.front(), P.back());
-		for (auto i = 0; i < P.size() - 1; ++i) {
-			size_t e_i = LID(P[i], P[i + 1]);
-//			printf("e=%lu;e_i=%lu; ", e, e_i);
-			if (rem) {
-				g.removeEdge(e, e_i);
-			} else {
-				g.addEdge(e, e_i);
-			}
-		}
-	}
-
-	bool hasShortCycle(const Path& P) { // check if the new dependencies create short cycle
-		size_t e = LID(P[0], P.back());
-		for (auto i = 0; i < P.size() - 1; ++i) {
-			size_t e_i = LID(P[i], P[i + 1]);
-			if (size_t x = g.shortest_path(e_i, e); x < N - 2) {
-				//printf("shortest_path(%lu,%lu)=%lu\n", e_i, e, x);
-				return true;
-			}
-		}
-		return false;
-	}
-
-	void run(const Vertex i = 0, const Vertex j = 1) {
-		Set V1 = V;
-		V1.remove(i);
-		V1.remove(j);
-		Powerset ps(V1);
-		ps.forEach([&](const Set& set) {	// for each backup path
-				//	printf("run i,j=%lu,%lu\n",i,j);
-					Path P = {i};
-					P.insert(P.begin() + 1, set.begin(), set.end());
-					P.push_back(j);
-					//print_path(P);
-					updateDependencies(P, false);
-
-					if(hasShortCycle(P)) {
-						updateDependencies(P, true);
-						return;
-					}
-					BP.push_back(P);
-					if(j < N-1) {
-						run(i, j+1);
-					} else if(i < N-2) {
-						run(i+1, i+2);
-					} else { // finished BP allocation successfully
-						cout<<"found it!!!!!!!!!!!!!!!\n";
-						print_BP();
-						//exit(0);
-					}
-					updateDependencies(P, true);
-					BP.pop_back();
-				});
-	}
-};
-
+#define GREEDY 1
+#if GREEDY
+// exhaustive search
 int main() {
-	BPA bpa(6);
-	bpa.run();
+	int N = 8;
+	clock_t t = clock();
+	vector<Edge> links;
+	for (int i = 0; i < N; ++i) {
+		for (int j = i + 1; j < N; ++j) {
+			links.push_back(Edge(i, j));
+		}
+	}
+	BPA bpa(N, links.size());
+//	size_t x = factorial(links.size());
+//	do {
+//	bpa.search(links);
+	bpa.greedy();
+//		if (--x % 1000 == 0) {
+//			printf("x=%lu\n", x);
+//		}
+//	}while (next_permutation(links.begin(), links.end()));
+	clock_t elapsed_secs = double(clock() - t) / CLOCKS_PER_SEC;
+	printf("elapsed time=%lu sec\n", elapsed_secs);
 }
+#else
+int main() {
+	signal(SIGSEGV, handler); // install our handler
+	clock_t t = clock();
+
+	const int N = 5, R = N - 2;
+	vector<Edge> links;
+	for (int i = 0; i < N; ++i) {
+		for (int j = i + 1; j < N; ++j) {
+			//			const bool regular3 =  (j-i == 3 || j-i == 1 || j-i == N-1);
+			const bool _4regular = (j - i) <= 2 || (j - i) >= N - 2;
+			if (1 || _4regular) {
+				//				printf("(i, j)=%d,%d\n", i, j); r
+				links.push_back(Edge(i, j));
+				links.push_back(Edge(j, i));
+			}
+		}
+	}
+
+	/*const int N = 8, R = 2;
+	 vector<Edge> links;
+	 links.push_back(Edge(0, 1));
+	 links.push_back(Edge(0, 2));
+	 links.push_back(Edge(0, 4));
+	 links.push_back(Edge(1, 3));
+	 links.push_back(Edge(1, 5));
+	 links.push_back(Edge(2, 3));
+	 links.push_back(Edge(2, 6));
+	 links.push_back(Edge(3, 7));
+	 links.push_back(Edge(4, 5));
+	 links.push_back(Edge(4, 6));
+	 links.push_back(Edge(5, 7));
+	 links.push_back(Edge(6, 7));
+	 for (Edge l : links) {
+	 Edge l_r(l.second, l.first);
+	 links.push_back(l_r);
+	 }*/
+
+	BPA_MIP mip(N, links, R);
+	vector<Path> scheme = mip.run();
+	print_BP(scheme);
+
+	clock_t elapsed_secs = double(clock() - t) / CLOCKS_PER_SEC;
+	printf("elapsed time=%lu sec\n", elapsed_secs);
+	/*
+	 size_t count = 0, all = factorial(15);
+	 BPA bpa(N, links.size());
+	 do {
+	 bool worked = true;
+	 for (const Path bp : scheme) {
+	 if (bp.size() < 4) {
+	 continue;
+	 }
+	 for (int i = 1; i < bp.size() - 1; ++i) {
+	 Path P = bp;
+	 //				printf("erasing %lu\n", *(P.begin() + i));
+	 P.erase(P.begin() + i);
+	 bpa.updateDependencies(P, false);
+	 if (bpa.isFeasible(bp) && !bpa.hasShortCycle(bp)) {
+	 worked = false;
+	 break;
+	 }
+	 bpa.updateDependencies(P, true);
+	 }
+	 if (!worked) {
+	 break;
+	 }
+	 }
+	 if (worked) {
+	 printf("greedy ordering exists!\n");
+	 print_BP(scheme);
+	 return 0;
+	 }
+	 if (++count % 1000 == 0) {
+	 printf("%f\n", (float) count / (float)all);
+	 }
+	 bpa.clear();
+	 } while (next_permutation(scheme.begin(), scheme.end()));
+	 */
+}
+#endif
