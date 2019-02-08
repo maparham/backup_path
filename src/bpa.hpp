@@ -181,18 +181,15 @@ class BPA {
 			updateDependencies(P, false);
 		}
 
-		for (auto i = 1; i < N; ++i) {
-			for (auto l = 1; l < (N - 1) / 2 + 1; ++l) {
-				auto j = (i + l - 1) % (N - 1) + 1;
+		for (auto i = 1; i < N - 1; ++i) {
+			for (auto j = i + 1; j < N; ++j) {
 				Path P;
 				P.push_back(i);
-				if (l == 1) {
+				if (plus1(j) != i) {
 					P.push_back(plus1(j));
-					P.push_back(0);
-
-				} else {
-					P.push_back(plus1(j));
-					P.push_back(0);
+				}
+				P.push_back(0);
+				if (plus1(i) != j) {
 					P.push_back(plus1(i));
 				}
 				P.push_back(j);

@@ -16,7 +16,7 @@ using namespace std;
 #if GREEDY
 // exhaustive search
 int main() {
-	int N = 8;
+	int N = 80;
 	clock_t t = clock();
 	vector<Edge> links;
 	for (int i = 0; i < N; ++i) {
